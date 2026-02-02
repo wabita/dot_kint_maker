@@ -22,6 +22,8 @@ function App() {
   const [grid, setGrid] = useState(() => makeGrid(gridSize));
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [bgOpacity, setBgOpacity] = useState(0.4);
+  const [penSize, setPenSize] = useState(1); // ★追加：ペンサイズ
+  const [lastPos, setLastPos] = useState<{ i: number, j: number } | null>(null);
   //グリットサイズ変更
   const resizeGrid = (newSize: GridSize) => {
     setGridSize(newSize);
@@ -135,12 +137,45 @@ function App() {
     reader.readAsDataURL(file);
   };
   //グリッドの色を変更
-  const ChangeGrid =(i:number , j:number) => {
-    setGrid((originalGrid) => {
-      const newGrid = originalGrid.map(row => [...row]);
-      newGrid[i][j] = nowColorID;
+  const paintCells = (i: number, j: number) => {
+    setGrid((prev) => {
+      const newGrid = prev.map(row => [...row]);
+      const points = [];
+
+      // 【補完ロジック】直前の座標(lastPos)があれば、今の座標(i, j)との間を埋める
+      if (lastPos) {
+        const di = Math.abs(i - lastPos.i);
+        const dj = Math.abs(j - lastPos.j);
+        const steps = Math.max(di, dj); // 何ステップで埋めるか決定
+
+        for (let s = 0; s <= steps; s++) {
+          const t = steps === 0 ? 0 : s / steps;
+          points.push({
+            ii: Math.round(lastPos.i + (i - lastPos.i) * t),
+            jj: Math.round(lastPos.j + (j - lastPos.j) * t)
+          });
+        }
+      } else {
+        points.push({ ii: i, jj: j });
+      }
+
+      // 【ペンサイズ適用】計算されたすべての点に対して、ペンサイズ分の範囲を塗る
+      points.forEach(({ ii, jj }) => {
+        const offset = Math.floor(penSize / 2);
+        for (let r = ii - offset; r < ii - offset + penSize; r++) {
+          for (let c = jj - offset; c < jj - offset + penSize; c++) {
+            // グリッドの範囲内かチェックして塗る
+            if (newGrid[r] && newGrid[r][c] !== undefined) {
+              newGrid[r][c] = nowColorID;
+            }
+          }
+        }
+      });
+
       return newGrid;
-    })
+    });
+    // 今塗った場所を「直前の座標」として保存
+    setLastPos({ i, j });
   };
   //パレット 色更新
   const UpdataPaletteID = (id:number, newColor:string) => {
@@ -155,6 +190,7 @@ function App() {
   };
 
 
+
   return (
 
     <FolderUI currentTab={activeTab} setCurrentTab={setActiveTab}>
@@ -162,9 +198,9 @@ function App() {
       <div style={{ textAlign: 'center', marginTop: '50px' }}>
         {activeTab === 'edit' ? (
           <Editor 
-          grid={grid} palette={palette} nowColorID={nowColorID} setNowColorID={setNowColorID} ChangeGrid={ChangeGrid} UpdataPaletteID={UpdataPaletteID} addColor={addColor}
+          grid={grid} palette={palette} nowColorID={nowColorID} setNowColorID={setNowColorID} UpdataPaletteID={UpdataPaletteID} addColor={addColor}
           handleImageUpload={handleImageUpload} gridSize={gridSize} resizeGrid={resizeGrid} backgroundImage={backgroundImage}
-          bgOpacity={bgOpacity} setBgOpacity={setBgOpacity}/>
+          bgOpacity={bgOpacity} setBgOpacity={setBgOpacity} penSize={penSize} setPenSize={setPenSize} paintCells={paintCells} setLastPos={setLastPos}/>
         ): (
           <Viewer grid={grid} palette={palette} gridSize={gridSize}/>
         )}

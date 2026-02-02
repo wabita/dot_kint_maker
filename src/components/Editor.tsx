@@ -5,7 +5,6 @@ type EditorProps = {
     palette: string[];
     nowColorID: number;
     setNowColorID: (id: number) => void;
-    ChangeGrid: (i: number, j: number) => void;
     UpdataPaletteID: (id: number, newColor: string) => void;
     addColor: () => void;
     handleImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void; 
@@ -14,25 +13,36 @@ type EditorProps = {
     backgroundImage: string | null;
     bgOpacity: number;
     setBgOpacity: (val: number) => void;
+    penSize: number;
+    setPenSize: (size: number) => void;
+    paintCells: (i: number, j: number) => void;
+    setLastPos: (pos: { i: number, j: number } | null) => void; 
 };
 
 export const Editor = ({ 
     grid, palette, nowColorID, setNowColorID, 
-    ChangeGrid, UpdataPaletteID, addColor, handleImageUpload ,gridSize, resizeGrid,backgroundImage,
-    bgOpacity, setBgOpacity
+    UpdataPaletteID, addColor, handleImageUpload ,gridSize, resizeGrid,backgroundImage,
+    bgOpacity, setBgOpacity, penSize, setPenSize, paintCells, setLastPos
 }: EditorProps) => {
     const [inputSize, setInputSize] = useState(gridSize);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const stopDrawing = () => {
+        setIsDrawing(false);
+        setLastPos(null); // これをしないと次の描き始めに線が繋がってしまいます
+    };
 
     return (
         /* 全体*/
-        <div style={{ 
-            display: 'inline-flex', 
-            flexDirection: 'row',
-            alignItems: 'flex-start',
-            gap: '10px',
-            margin: '0 auto',
-            justifyContent: 'flex-start',
-            width: '100%'
+        <div onMouseUp={stopDrawing}
+             onMouseLeave={stopDrawing}
+            style={{ 
+                display: 'inline-flex', 
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                gap: '10px',
+                margin: '0 auto',
+                justifyContent: 'flex-start',
+                width: '100%'
         }}>
             
             {/* 左側*/}
@@ -114,7 +124,6 @@ export const Editor = ({
                 </div>
             </div>
             {/* 中央：キャンパス */}
-            {/* 中央：キャンパス (ここが400x400の「額縁」) */}
             <div style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -134,10 +143,10 @@ export const Editor = ({
                     aspectRatio: `${gridSize.col} / ${gridSize.row}`,
                     display: 'flex',
                     flexDirection: 'column',
-                    position: 'relative', // ★ここが背景画像の「基準」になります
+                    position: 'relative', 
                     zIndex: 0, 
                 }}>
-                    {/* ▼▼▼ 下書き画像レイヤー：キャンバスの範囲内だけに表示 ▼▼▼ */}
+                    {/*下書き画像レイヤー */}
                     {backgroundImage && (
                         <div style={{
                             position: 'absolute',
@@ -163,7 +172,16 @@ export const Editor = ({
                             {row.map((colorID, j) => (
                                 <div
                                     key={`${i}-${j}`}
-                                    onClick={() => ChangeGrid(i, j)}
+                                    onMouseDown={() => {
+                                        setIsDrawing(true);
+                                        paintCells(i, j); // クリックした瞬間も塗る
+                                    }}
+                                    onMouseEnter={() => {
+                                        if (isDrawing) {
+                                            paintCells(i, j); // 押したまま入ったら塗る
+                                        }
+                                    }}
+
                                     style={{
                                         flex: 1,
                                         width: '100%',
@@ -173,7 +191,7 @@ export const Editor = ({
                                         backgroundColor: palette[colorID] === '#FFFFFF' && backgroundImage 
                                             ? 'rgba(255, 255, 255, 0.2)' 
                                             : palette[colorID],
-                                        cursor: 'pointer',
+                                        cursor: 'crosshair',
                                     }}
                                 />
                             ))}
@@ -190,6 +208,29 @@ export const Editor = ({
                 alignSelf: 'flex-start',
                 marginLeft: '7px'
             }}>
+                {/* ペンサイズ選択 */}
+                <div style={{ 
+                    display: 'flex', gap: '5px', padding: '10px', 
+                    border: '4px solid var(--border-color)', borderRadius: '8px', backgroundColor: '#f4f1e8' ,
+                    paddingBottom: '10px'
+                }}>
+                    {[1, 2, 3].map(size => (
+                        <button
+                            key={size}
+                            onClick={() => setPenSize(size)}
+                            style={{
+                                width: '30px', height: '30px', cursor: 'pointer',
+                                backgroundColor: penSize === size ? 'var(--border-color)' : 'white',
+                                color: penSize === size ? 'white' : 'black',
+                                border: '1px solid #ccc', borderRadius: '4px',
+                                fontFamily: 'DotFont'
+                            }}
+                        >
+                            {size}
+                        </button>
+                    ))}
+                </div>
+                {/* カラーパレットリスト */}
                 <div style={{
                     display: 'flex',
                     flexDirection: 'column',
