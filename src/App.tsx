@@ -22,9 +22,10 @@ function App() {
   const [grid, setGrid] = useState(() => makeGrid(gridSize));
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [bgOpacity, setBgOpacity] = useState(0.4);
-  const [penSize, setPenSize] = useState(1); // ★追加：ペンサイズ
+  const [penSize, setPenSize] = useState(1); // ペンサイズ
   const [lastPos, setLastPos] = useState<{ i: number, j: number } | null>(null);
   const [zoom, setZoom] = useState(1.0);
+  const [bgOffset, setBgOffset] = useState({ x: 0, y: 0 }); // 下書きの移動距離
   //グリットサイズ変更
   const resizeGrid = (newSize: GridSize) => {
     setGridSize(newSize);
@@ -56,14 +57,29 @@ function App() {
       if (ctx) {
         const imgRatio = img.width / img.height;
         const gridRatio = gridSize.col / gridSize.row;
-        const drawWidth = imgRatio > gridRatio ? gridSize.col : gridSize.row * imgRatio;
-        const drawHeight = imgRatio > gridRatio ? gridSize.col / imgRatio : gridSize.row;
-        const offsetX = (gridSize.col - drawWidth) / 2;
-        const offsetY = gridSize.row - drawHeight;
+        let drawWidth, drawHeight;
+
+        if (imgRatio > gridRatio) {
+          drawWidth = gridSize.col;
+          drawHeight = gridSize.col / imgRatio;
+        } else {
+          drawHeight = gridSize.row;
+          drawWidth = gridSize.row * imgRatio;
+        }
+
+        // 基準の位置計算
+        const baseOffsetX = (gridSize.col - drawWidth) / 2;
+        const baseOffsetY = gridSize.row - drawHeight;
+
+        // ★ UI上の移動量(px)を、グリッドの目数に変換して加算する
+        // キャンバスの表示サイズ（400px）と実際の目数の比率を計算
+        const scaleK = gridSize.col / 400; 
+        const finalX = baseOffsetX + (bgOffset.x * scaleK);
+        const finalY = baseOffsetY + (bgOffset.y * scaleK);
 
         ctx.fillStyle = "#FFFFFF"; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+        ctx.drawImage(img, finalX, finalY, drawWidth, drawHeight);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
 
         const hexToRgb = (hex: string) => ({
@@ -112,6 +128,7 @@ function App() {
     };
     reader.readAsDataURL(file);
   };
+  
   // パレット変更後に再実行する用
   const handleRefreshConversion = () => {
     if (backgroundImage) runImageConversion(backgroundImage);
@@ -189,7 +206,7 @@ function App() {
           grid={grid} palette={palette} nowColorID={nowColorID} setNowColorID={setNowColorID} UpdataPaletteID={UpdataPaletteID} addColor={addColor}
           handleImageUpload={handleImageUpload} gridSize={gridSize} resizeGrid={resizeGrid} backgroundImage={backgroundImage}
           bgOpacity={bgOpacity} setBgOpacity={setBgOpacity} penSize={penSize} setPenSize={setPenSize} paintCells={paintCells} setLastPos={setLastPos}
-          zoom={zoom} setZoom={setZoom} handleRefreshConversion={handleRefreshConversion} clearGrid={clearGrid} />
+          zoom={zoom} setZoom={setZoom} handleRefreshConversion={handleRefreshConversion} clearGrid={clearGrid} bgOffset={bgOffset} setBgOffset={setBgOffset}/>
         ): (
           <Viewer grid={grid} palette={palette} gridSize={gridSize}/>
         )}

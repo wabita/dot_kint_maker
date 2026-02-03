@@ -21,20 +21,22 @@ type EditorProps = {
     setZoom: (val: number) => void;
     handleRefreshConversion: () => void;
     clearGrid: () => void;
+    bgOffset: { x: number, y: number };
+    setBgOffset: (offset: { x: number, y: number }) => void;
 };
 
 export const Editor = ({ 
     grid, palette, nowColorID, setNowColorID, 
     UpdataPaletteID, addColor, handleImageUpload ,gridSize, resizeGrid,backgroundImage,
     bgOpacity, setBgOpacity, penSize, setPenSize, paintCells, setLastPos, zoom, setZoom,
-    handleRefreshConversion, clearGrid
+    handleRefreshConversion, clearGrid, bgOffset, setBgOffset
 }: EditorProps) => {
     const [inputSize, setInputSize] = useState(gridSize);
     const [isDrawing, setIsDrawing] = useState(false);
 
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false); // 手のひらツール中か
-    const [mode, setMode] = useState<'pen' | 'hand'>('pen'); // ツールモード
+    const [mode, setMode] = useState<'pen' | 'hand' | 'draft'>('pen'); // ツールモード
 
     // 描画終了時の処理
     const stopDrawing = () => {
@@ -44,14 +46,24 @@ export const Editor = ({
     };
     // マウス移動時の処理
     const handleMouseMove = (e: React.MouseEvent) => {
-        if (mode === 'hand' && isPanning) {
-            // 手のひらツールで掴んで移動
-            setOffset(prev => ({
-                x: prev.x + e.movementX,
-                y: prev.y + e.movementY
-            }));
-        } else if (mode === 'pen' && isDrawing) {
-            // ペンで描画（ここは各セル側で処理してもOKですが、イベント委譲の方がスムーズです）
+        if (isPanning) {
+            if (mode === 'hand') {
+                setOffset(prev => ({ x: prev.x + e.movementX, y: prev.y + e.movementY }));
+            } else if (mode === 'draft') {
+                // ★ 下書きだけの移動をここで処理
+                setBgOffset({ x: bgOffset.x + e.movementX, y: bgOffset.y + e.movementY });
+            }
+        }
+    };
+
+    // ホイール操作で拡大縮小
+    const handleWheel = (e: React.WheelEvent) => {
+        // e.deltaY がマイナスなら上（奥）へ回転 ＝ 拡大
+        // e.deltaY がプラスなら下（手前）へ回転 ＝ 縮小
+        if (e.deltaY < 0) {
+            setZoom(Math.min(zoom + 0.1, 3.0)); // 最大300%
+        } else {
+            setZoom(Math.max(zoom - 0.1, 0.5)); // 最小50%
         }
     };
     
@@ -73,145 +85,65 @@ export const Editor = ({
             
             {/* 左側*/}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center',marginRight: '3px', display: 'flex', gap: '10px' }}>
-                    {/* import */}
-                    <label style={{
-                        cursor: 'pointer',
-                        padding: '8px 15px',
-                        border: '4px solid var(--border-color)',
-                        borderRadius: '100vh',
-                        backgroundColor: 'white',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        textAlign: 'center',
-                        width: '100px',
-                        margin: '0 auto'
-                    }}>
-                        import
-                        <input 
-                            type="file" 
-                            accept="image/*" 
-                            onChange={handleImageUpload} 
-                            style={{ display: 'none' }} 
-                        />
+                {/* 1. Import & Refresh */}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <label style={{ cursor: 'pointer', padding: '8px 15px', border: '4px solid var(--border-color)', borderRadius: '100vh', backgroundColor: 'white', fontSize: '12px', fontWeight: 'bold' }}>
+                        import<input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
                     </label>
-                    {/* 更新ボタン*/}
-                    <button 
-                        onClick={handleRefreshConversion}
-                        disabled={!backgroundImage}
-                        style={{
-                            cursor: backgroundImage ? 'pointer' : 'not-allowed',
-                            padding: '8px', border: '4px solid var(--border-color)',
-                            borderRadius: '50%', backgroundColor: 'white', fontSize: '14px',
-                            opacity: backgroundImage ? 1 : 0.4
-                        }}
-                        title="現在のパレットで再変換"
-                        ><i className="bi bi-arrow-clockwise"></i></button>
+                    <button onClick={handleRefreshConversion} disabled={!backgroundImage} style={{ cursor: backgroundImage ? 'pointer' : 'not-allowed', width: '35px', height: '35px', border: '4px solid var(--border-color)', borderRadius: '50%', backgroundColor: 'white', opacity: backgroundImage ? 1 : 0.4 }}>
+                        <i className="bi bi-arrow-clockwise"></i>
+                    </button>
                 </div>
 
-                {/*画像サイズ変更*/}
-                <div style={{ 
-                        display: 'flex', flexDirection: 'column', gap: '5px', 
-                        padding: '10px', border: '2px solid var(--border-color)', borderRadius: '8px' 
-                    }}>
-                        <div style={{ fontSize: '11px', fontWeight: 'bold' }}>SIZE</div>
-                        <div style={{flexDirection: 'row', display: 'flex', gap: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
-                                <input 
-                                    type="number" 
-                                    value={inputSize.col} 
-                                    onChange={(e) => setInputSize({...inputSize, col: Number(e.target.value)})}
-                                    style={{ width: '40px', border: '1px solid #ccc' }} 
-                                /> 目
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
-                                <input 
-                                    type="number" 
-                                    value={inputSize.row} 
-                                    onChange={(e) => setInputSize({...inputSize, row: Number(e.target.value)})}
-                                    style={{ width: '40px', border: '1px solid #ccc' }} 
-                                /> 段
-                            </div>
-                            <button 
-                                onClick={() => resizeGrid(inputSize)}
-                                style={{ 
-                                    marginTop: '5px', fontSize: '10px', cursor: 'pointer',
-                                    backgroundColor: 'var(--border-color)', color: 'white', border: 'none', borderRadius: '4px' 
-                                }}
-                            >
-                                リサイズ
-                            </button>
-                        </div>
-                </div>  
+                {/* 2. SIZE設定 */}
+                <div style={{ padding: '10px', border: '2px solid var(--border-color)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold' }}>SIZE</div>
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                        <input type="number" value={inputSize.col} onChange={(e) => setInputSize({...inputSize, col: Number(e.target.value)})} style={{ width: '40px' }} />
+                        <input type="number" value={inputSize.row} onChange={(e) => setInputSize({...inputSize, row: Number(e.target.value)})} style={{ width: '40px' }} />
+                        <button onClick={() => resizeGrid(inputSize)} style={{ fontSize: '10px', cursor: 'pointer' }}>リサイズ</button>
+                    </div>
+                </div>
 
-                {/* ✎ / ✋ モード切り替え */}
+                {/* 3. モード切り替え (ここが重要) */}
                 <div style={{ display: 'flex', gap: '5px', padding: '10px', border: '2px solid var(--border-color)', borderRadius: '8px' }}>
-                    <button 
-                        onClick={() => setMode('pen')}
-                        style={{ flex: 1, height: '30px', cursor: 'pointer', backgroundColor: mode === 'pen' ? 'var(--border-color)' : 'white', color: mode === 'pen' ? 'white' : 'black' }}
-                    ><i className="bi bi-pencil-fill"></i></button>
-                    <button 
-                        onClick={() => setMode('hand')}
-                        style={{ flex: 1, height: '30px', cursor: 'pointer', backgroundColor: mode === 'hand' ? 'var(--border-color)' : 'white', color: mode === 'hand' ? 'white' : 'black' }}
-                    ><i className="bi bi-hand-index-thumb-fill"></i></button>
+                    <button onClick={() => setMode('pen')} style={{ flex: 1, height: '30px', backgroundColor: mode === 'pen' ? 'var(--border-color)' : 'white', color: mode === 'pen' ? 'white' : 'black' }}><i className="bi bi-pencil-fill"></i></button>
+                    <button onClick={() => setMode('hand')} style={{ flex: 1, height: '30px', backgroundColor: mode === 'hand' ? 'var(--border-color)' : 'white', color: mode === 'hand' ? 'white' : 'black' }}><i className="bi bi-hand-index-thumb-fill"></i></button>
+                    {/* 下書き移動モードボタン */}
+                    <button onClick={() => setMode(mode === 'draft' ? 'pen' : 'draft')} style={{ flex: 1, height: '30px', backgroundColor: mode === 'draft' ? 'var(--border-color)' : 'white', color: mode === 'draft' ? 'white' : 'black' }}>
+                        <span className="glyphicon glyphicon-move"></span>
+                    </button>
                 </div>
 
-                {/*拡大縮小ボタン */}
-                <div style={{ 
-                    display: 'flex', flexDirection: 'column', gap: '5px', 
-                    padding: '10px', border: '2px solid var(--border-color)', borderRadius: '8px' 
-                }}>
-                    <div style={{ fontSize: '11px', fontWeight: 'bold' }}>ZOOM</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'center' }}>
-                        <button 
-                            onClick={() => setZoom(Math.max(zoom - 0.1, 0.5))}
-                            style={{ cursor: 'pointer', borderRadius: '50%', width: '30px', height: '30px', backgroundColor: 'var(--border-color)', color: 'white' }}
-                        ><i className="bi bi-zoom-out"></i></button>
-                        <button 
-                            onClick={() => setZoom(Math.min(zoom + 0.1, 3.0))}
-                            style={{ cursor: 'pointer', borderRadius: '50%', width: '30px', height: '30px', backgroundColor: 'var(--border-color)', color: 'white' }}
-                        ><i className="bi bi-zoom-in"></i></button>
-                        <button 
-                            onClick={() => { setOffset({x:0, y:0}); setZoom(1); }}
-                            style={{ cursor: 'pointer', borderRadius: '50%', width: '30px', height: '30px', backgroundColor: 'var(--border-color)', color: 'white' }}
-                        ><i className="bi bi-arrows-fullscreen"></i></button>
+                {/* 4. ZOOM & 下書き位置リセット */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', padding: '10px', border: '2px solid var(--border-color)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold' }}>ZOOM / RESET</div>
+                    <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                        <button onClick={() => setZoom(Math.max(zoom - 0.1, 0.5))} style={{ width: '30px', height: '30px', borderRadius: '50%' }}><i className="bi bi-zoom-out"></i></button>
+                        <button onClick={() => setZoom(Math.min(zoom + 0.1, 3.0))} style={{ width: '30px', height: '30px', borderRadius: '50%' }}><i className="bi bi-zoom-in"></i></button>
+                        <button onClick={() => { setOffset({x:0, y:0}); setZoom(1); }} style={{ width: '30px', height: '30px', borderRadius: '50%' }}><i className="bi bi-arrows-fullscreen"></i></button>
                     </div>
+                    {/* 下書きの位置だけを初期化 */}
+                    <button onClick={() => setBgOffset({x:0, y:0})} style={{ fontSize: '9px', marginTop: '5px', cursor: 'pointer' }}>下書き位置リセット</button>
                 </div>
-                {/* 背景画像の不透明度 */}
-                <div style={{ 
-                    display: 'flex', flexDirection: 'column', gap: '5px', 
-                    padding: '10px', border: 'none', borderRadius: '8px',
-                }}>
+
+                {/* 5. 透明度設定 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', padding: '10px' }}>
                     <div style={{ fontSize: '11px', fontWeight: 'bold' }}>下書き透明度</div>
-                    <input 
-                        type="range" 
-                        min="0" 
-                        max="1" 
-                        step="0.05" 
-                        value={bgOpacity} 
-                        onChange={(e) => setBgOpacity(Number(e.target.value))}
-                        style={{ width: '100%', cursor: 'pointer',accentColor: 'var(--border-color)' }} 
-                    />
-                    <div style={{ fontSize: '10px', textAlign: 'right' }}>
-                        {Math.round(bgOpacity * 100)}%
-                    </div>
+                    <input type="range" min="0" max="1" step="0.05" value={bgOpacity} onChange={(e) => setBgOpacity(Number(e.target.value))} style={{ accentColor: 'var(--border-color)' }} />
                 </div>
             </div>
+
             {/* 中央：キャンパス */}
-            <div onMouseDown={() => mode === 'hand' && setIsPanning(true)}
-                style={{
-                display: 'flex',
-                flexDirection: 'column',
-                width: '400px',
-                height: '400px',
-                flexShrink: 0,
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-                border: 'none',
-                overflow: 'hidden',
-                cursor: mode === 'hand' ? (isPanning ? 'grabbing' : 'grab') : 'crosshair'
-            }}>
+            <div onMouseDown={() => (mode === 'hand' || mode === 'draft') && setIsPanning(true)}
+                 onWheel={handleWheel}
+                 style={{
+                    display: 'flex', flexDirection: 'column', width: '400px', height: '400px',
+                    flexShrink: 0, alignItems: 'center', justifyContent: 'center', position: 'relative',
+                    overflow: 'hidden', border: 'none',
+
+                    cursor: mode === 'hand' ? (isPanning ? 'grabbing' : 'grab') : mode === 'draft' ? 'move' : 'crosshair'
+                }}>
                 {/* 実際のキャンバス（グリッドエリア） */}
                 <div style={{
                     width: gridSize.col >= gridSize.row ? '100%' : 'auto',
@@ -229,20 +161,11 @@ export const Editor = ({
                     {/*下書き画像レイヤー */}
                     {backgroundImage && (
                         <div style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            backgroundImage: `url(${backgroundImage})`,
-                            // contain は、枠（キャンバス）の短い辺に合わせて比率を保ちます
-                            backgroundSize: 'contain', 
-                            // ★ 下辺の中央に揃える
-                            backgroundPosition: 'bottom center', 
-                            backgroundRepeat: 'no-repeat',
-                            opacity: bgOpacity,
-                            zIndex: 1, 
-                            pointerEvents: 'none'
+                            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                            backgroundImage: `url(${backgroundImage})`, backgroundSize: 'contain',
+                            backgroundPosition: 'bottom center', backgroundRepeat: 'no-repeat',
+                            opacity: bgOpacity, zIndex: 1, pointerEvents: 'none',
+                            transform: `translate(${bgOffset.x}px, ${bgOffset.y}px)`
                         }} />
                     )}
 
@@ -259,17 +182,14 @@ export const Editor = ({
                                         }
                                     }}
                                     onMouseEnter={() => {
+                                        // ★修正3: 閉じカッコ } を追加して文法エラーを解消
                                         if (isDrawing && mode === 'pen') {
-                                            paintCells(i, j);}
+                                            paintCells(i, j);
+                                        }
                                     }}
-
                                     style={{
-                                        flex: 1,
-                                        width: '100%',
-                                        height: '100%',
+                                        flex: 1, width: '100%', height: '100%',
                                         border: '0.5px solid rgba(0, 0, 0, 0.15)',
-                                        // 背景が見えるように、白(#FFFFFF)の時は少し透けさせる
-                                        cursor: 'crosshair',
                                         backgroundColor: palette[colorID] === '#FFFFFF' && backgroundImage 
                                             ? 'rgba(255, 255, 255, 0.2)' 
                                             : palette[colorID],
