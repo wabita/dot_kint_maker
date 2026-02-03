@@ -23,13 +23,19 @@ type EditorProps = {
     clearGrid: () => void;
     bgOffset: { x: number, y: number };
     setBgOffset: (offset: { x: number, y: number }) => void;
+
+    undo: () => void;
+    redo: () => void;
+    canUndo: boolean;
+    canRedo: boolean;
+    endAction: () => void;
 };
 
 export const Editor = ({ 
     grid, palette, nowColorID, setNowColorID, 
     UpdataPaletteID, addColor, handleImageUpload ,gridSize, resizeGrid,backgroundImage,
     bgOpacity, setBgOpacity, penSize, setPenSize, paintCells, setLastPos, zoom, setZoom,
-    handleRefreshConversion, clearGrid, bgOffset, setBgOffset
+    handleRefreshConversion, clearGrid, bgOffset, setBgOffset, undo, redo, canUndo, canRedo, endAction
 }: EditorProps) => {
     const [inputSize, setInputSize] = useState(gridSize);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -40,6 +46,9 @@ export const Editor = ({
 
     // 描画終了時の処理
     const stopDrawing = () => {
+        if (isDrawing && mode === 'pen') {
+            endAction();
+        }
         setIsDrawing(false);
         setIsPanning(false);
         setLastPos(null);
@@ -50,7 +59,6 @@ export const Editor = ({
             if (mode === 'hand') {
                 setOffset(prev => ({ x: prev.x + e.movementX, y: prev.y + e.movementY }));
             } else if (mode === 'draft') {
-                // ★ 下書きだけの移動をここで処理
                 setBgOffset({ x: bgOffset.x + e.movementX, y: bgOffset.y + e.movementY });
             }
         }
@@ -85,56 +93,60 @@ export const Editor = ({
             
             {/* 左側*/}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {/* 1. Import & Refresh */}
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <label style={{ cursor: 'pointer', padding: '8px 15px', border: '4px solid var(--border-color)', borderRadius: '100vh', backgroundColor: 'white', fontSize: '12px', fontWeight: 'bold' }}>
-                        import<input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
-                    </label>
-                    <button onClick={handleRefreshConversion} disabled={!backgroundImage} style={{ cursor: backgroundImage ? 'pointer' : 'not-allowed', width: '35px', height: '35px', border: '4px solid var(--border-color)', borderRadius: '50%', backgroundColor: 'white', opacity: backgroundImage ? 1 : 0.4 }}>
-                        <i className="bi bi-arrow-clockwise"></i>
+                {/*下書き編集・画像インポート*/}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', padding: '10px', border: '2px solid var(--border-color)', borderRadius: '8px' }}>
+                    {/* Import & Refresh */}
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', justifyContent: 'center' }}>
+                        <label style={{ cursor: 'pointer', padding: '8px 15px', border: '4px solid var(--border-color)', borderRadius: '100vh', backgroundColor: 'white', fontSize: '12px', fontWeight: 'bold' }}>
+                            import data<input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                        </label>
+                        <button onClick={handleRefreshConversion} disabled={!backgroundImage} style={{ cursor: backgroundImage ? 'pointer' : 'not-allowed', width: '35px', height: '35px', border: '4px solid var(--border-color)', borderRadius: '50%', backgroundColor: 'white', opacity: backgroundImage ? 1 : 0.4 }}>
+                            <i className="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                    {/* 透明度設定 */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', padding: '10px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 'bold' }}>下書き透明度</div>
+                        <input type="range" min="0" max="1" step="0.05" value={bgOpacity} onChange={(e) => setBgOpacity(Number(e.target.value))} style={{ accentColor: 'var(--border-color)' }} />
+                    </div>
+                    {/* 下書き移動モードボタン */}
+                    <button onClick={() => setMode(mode === 'draft' ? 'pen' : 'draft')} style={{ flex: 1, height: '30px', backgroundColor: mode === 'draft' ? 'var(--border-color)' : 'white', color: mode === 'draft' ? 'white' : 'black' }}>
+                        <i className="bi bi-arrows-move"></i>
                     </button>
+                    {/* 下書きの位置だけを初期化 */}
+                    <button onClick={() => setBgOffset({x:0, y:0})} style={{ fontSize: '9px', marginTop: '5px', cursor: 'pointer' }}>下書き位置リセット</button>
                 </div>
 
-                {/* 2. SIZE設定 */}
-                <div style={{ padding: '10px', border: '2px solid var(--border-color)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 'bold' }}>SIZE</div>
+                {/* SIZE設定 */}
+                <div style={{ padding: '10px', border: 'none', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                     <div style={{ display: 'flex', gap: '5px' }}>
                         <input type="number" value={inputSize.col} onChange={(e) => setInputSize({...inputSize, col: Number(e.target.value)})} style={{ width: '40px' }} />
+                        <div style={{ fontSize: '10px', fontWeight: 'bold' }}>目</div>
                         <input type="number" value={inputSize.row} onChange={(e) => setInputSize({...inputSize, row: Number(e.target.value)})} style={{ width: '40px' }} />
-                        <button onClick={() => resizeGrid(inputSize)} style={{ fontSize: '10px', cursor: 'pointer' }}>リサイズ</button>
+                        <div style={{ fontSize: '10px', fontWeight: 'bold' }}>段</div>
+                        <button onClick={() => resizeGrid(inputSize)} style={{ fontSize: '10px', cursor: 'pointer', borderRadius: '50%', border: '2px solid var(--border-color)', backgroundColor: 'white', width: '30px', height: '30px' }}> ▶︎</button>
                     </div>
                 </div>
 
-                {/* 3. モード切り替え (ここが重要) */}
+                {/* モード切り替え */}
                 <div style={{ display: 'flex', gap: '5px', padding: '10px', border: '2px solid var(--border-color)', borderRadius: '8px' }}>
                     <button onClick={() => setMode('pen')} style={{ flex: 1, height: '30px', backgroundColor: mode === 'pen' ? 'var(--border-color)' : 'white', color: mode === 'pen' ? 'white' : 'black' }}><i className="bi bi-pencil-fill"></i></button>
                     <button onClick={() => setMode('hand')} style={{ flex: 1, height: '30px', backgroundColor: mode === 'hand' ? 'var(--border-color)' : 'white', color: mode === 'hand' ? 'white' : 'black' }}><i className="bi bi-hand-index-thumb-fill"></i></button>
-                    {/* 下書き移動モードボタン */}
-                    <button onClick={() => setMode(mode === 'draft' ? 'pen' : 'draft')} style={{ flex: 1, height: '30px', backgroundColor: mode === 'draft' ? 'var(--border-color)' : 'white', color: mode === 'draft' ? 'white' : 'black' }}>
-                        <span className="glyphicon glyphicon-move"></span>
-                    </button>
                 </div>
 
                 {/* 4. ZOOM & 下書き位置リセット */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', padding: '10px', border: '2px solid var(--border-color)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 'bold' }}>ZOOM / RESET</div>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold' }}>data edit</div>
                     <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
                         <button onClick={() => setZoom(Math.max(zoom - 0.1, 0.5))} style={{ width: '30px', height: '30px', borderRadius: '50%' }}><i className="bi bi-zoom-out"></i></button>
                         <button onClick={() => setZoom(Math.min(zoom + 0.1, 3.0))} style={{ width: '30px', height: '30px', borderRadius: '50%' }}><i className="bi bi-zoom-in"></i></button>
                         <button onClick={() => { setOffset({x:0, y:0}); setZoom(1); }} style={{ width: '30px', height: '30px', borderRadius: '50%' }}><i className="bi bi-arrows-fullscreen"></i></button>
                     </div>
-                    {/* 下書きの位置だけを初期化 */}
-                    <button onClick={() => setBgOffset({x:0, y:0})} style={{ fontSize: '9px', marginTop: '5px', cursor: 'pointer' }}>下書き位置リセット</button>
                 </div>
 
-                {/* 5. 透明度設定 */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', padding: '10px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 'bold' }}>下書き透明度</div>
-                    <input type="range" min="0" max="1" step="0.05" value={bgOpacity} onChange={(e) => setBgOpacity(Number(e.target.value))} style={{ accentColor: 'var(--border-color)' }} />
-                </div>
             </div>
 
-            {/* 中央：キャンパス */}
+            {/* 中央*/}
             <div onMouseDown={() => (mode === 'hand' || mode === 'draft') && setIsPanning(true)}
                  onWheel={handleWheel}
                  style={{
@@ -144,6 +156,7 @@ export const Editor = ({
 
                     cursor: mode === 'hand' ? (isPanning ? 'grabbing' : 'grab') : mode === 'draft' ? 'move' : 'crosshair'
                 }}>
+                    
                 {/* 実際のキャンバス（グリッドエリア） */}
                 <div style={{
                     width: gridSize.col >= gridSize.row ? '100%' : 'auto',
@@ -182,7 +195,6 @@ export const Editor = ({
                                         }
                                     }}
                                     onMouseEnter={() => {
-                                        // ★修正3: 閉じカッコ } を追加して文法エラーを解消
                                         if (isDrawing && mode === 'pen') {
                                             paintCells(i, j);
                                         }
@@ -210,6 +222,28 @@ export const Editor = ({
                 marginLeft: '7px',
                 gap: '15px'
             }}>
+                {/* ヒストリー（戻る・進む）ボタン - 一番上に追加 */}
+                <div style={{ 
+                    display: 'flex', gap: '10px', padding: '10px', 
+                    border: '4px solid var(--border-color)', borderRadius: '8px', backgroundColor: '#f4f1e8',
+                    justifyContent: 'center'
+                }}>
+                    <button 
+                        onClick={undo} 
+                        disabled={!canUndo}
+                        style={{ ...historyBtnStyle, opacity: canUndo ? 1 : 0.4 }}
+                    >
+                        <i className="bi bi-arrow-90deg-left"></i>
+                    </button>
+                    <button 
+                        onClick={redo} 
+                        disabled={!canRedo}
+                        style={{ ...historyBtnStyle, opacity: canRedo ? 1 : 0.4 }}
+                    >
+                        <i className="bi bi-arrow-90deg-right"></i>
+                    </button>
+                </div>
+
                 {/* ペンサイズ選択 */}
                 <div style={{ 
                     display: 'flex', gap: '5px', padding: '10px', 
@@ -317,3 +351,12 @@ export const Editor = ({
         </div>
     );
 };
+
+// スタイル定数
+const historyBtnStyle = {
+    width: '40px', height: '35px', cursor: 'pointer',
+    backgroundColor: 'white', border: '2px solid var(--border-color)', borderRadius: '4px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px'
+};
+
+

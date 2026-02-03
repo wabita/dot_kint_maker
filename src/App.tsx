@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { get, set } from 'idb-keyval';
+import { useState, useCallback } from 'react';
+//import { get, set } from 'idb-keyval';
 import { FolderUI } from './components/FolderUI';
 import { Editor } from './components/Editor';
 
@@ -19,33 +19,52 @@ function App() {
   const [activeTab, setActiveTab] = useState<'edit' | 'view'> ('edit');
   const [palette,setPalette] = useState(['#FFFFFF', '#000000', '#FF0000', '#00FF00', '#0000FF']);
   const [nowColorID, setNowColorID] = useState(1);
-  const [grid, setGrid] = useState(() => makeGrid(gridSize));
+  const [history, setHistory] = useState<{grid: number[][], size: GridSize}[]>(() => [
+    { grid: makeGrid({ row: 90, col: 73 }), size: { row: 90, col: 73 } }
+  ]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [grid, setGrid] = useState(() => history[0].grid);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [bgOpacity, setBgOpacity] = useState(0.4);
-  const [penSize, setPenSize] = useState(1); // ペンサイズ
+  const [penSize, setPenSize] = useState(1);
   const [lastPos, setLastPos] = useState<{ i: number, j: number } | null>(null);
   const [zoom, setZoom] = useState(1.0);
-  const [bgOffset, setBgOffset] = useState({ x: 0, y: 0 }); // 下書きの移動距離
-  //グリットサイズ変更
+  const [bgOffset, setBgOffset] = useState({ x: 0, y: 0 });
+
+
+
+  const saveHistory = useCallback((currentGrid: number[][], currentSize: GridSize) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push({ 
+        grid: JSON.parse(JSON.stringify(currentGrid)), 
+        size: { ...currentSize } 
+      });
+      if (newHistory.length > 50) newHistory.shift(); 
+      return newHistory;
+    });
+    setHistoryIndex(prev => {
+      const next = prev + 1;
+      return next >= 50 ? 49 : next;
+    });
+  }, [historyIndex]);
+
+  //グリッドサイズ変更
   const resizeGrid = (newSize: GridSize) => {
     setGridSize(newSize);
-    setGrid(makeGrid(newSize)); // グリッドを新しいサイズで作り直す
+    const newGrid = makeGrid(newSize);
+    setGrid(newGrid);
+    saveHistory(newGrid, newSize);
   };
-
-  useEffect(() => {
-    async function loadData(){
-      const savedGrid = await get("originalGrid");
-      const savedPalette = await get("originalPalette");
-      if (savedGrid) setGrid(savedGrid);
-      if (savedPalette) setPalette(savedPalette);
-    }loadData();
-  }, []);
-  useEffect(() => {
-    set("originalGrid", grid);
-    set("originalPalette", palette);
-  }, [grid, palette]);
-
-  // 画像からグリッドを生成する核心部分を関数として抽出
+  //グリッドをパレット0番の色でリセットする関数
+  const clearGrid = () => {
+    if (window.confirm("ドット絵をすべてリセットしますか？")) {
+      const newGrid = makeGrid(gridSize);
+      setGrid(newGrid);
+      saveHistory(newGrid, gridSize);
+    }
+  };
+    // 画像からグリッドを生成する核心部分を関数として抽出
   const runImageConversion = (imageSrc: string) => {
     const img = new Image();
     img.onload = () => {
@@ -71,7 +90,7 @@ function App() {
         const baseOffsetX = (gridSize.col - drawWidth) / 2;
         const baseOffsetY = gridSize.row - drawHeight;
 
-        // ★ UI上の移動量(px)を、グリッドの目数に変換して加算する
+        // UI上の移動量(px)を、グリッドの目数に変換して加算する
         // キャンバスの表示サイズ（400px）と実際の目数の比率を計算
         const scaleK = gridSize.col / 400; 
         const finalX = baseOffsetX + (bgOffset.x * scaleK);
@@ -111,10 +130,35 @@ function App() {
           }
         }
         setGrid(newGrid);
+        saveHistory(newGrid, gridSize);
       }
     };
     img.src = imageSrc;
   };
+  //描画終了時に保存
+  const endAction = () => {
+    saveHistory(grid, gridSize);
+  };
+
+    // 戻る・進むの関数
+  const undo = () => {
+      if (historyIndex > 0) {
+          const prev = history[historyIndex - 1];
+          setGrid(prev.grid);
+          setGridSize(prev.size);
+          setHistoryIndex(historyIndex - 1);
+      }
+  };
+
+  const redo = () => {
+      if (historyIndex < history.length - 1) {
+          const next = history[historyIndex + 1];
+          setGrid(next.grid);
+          setGridSize(next.size);
+          setHistoryIndex(historyIndex + 1);
+      }
+  };
+
 
   // 新しくアップロードした時
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,13 +176,6 @@ function App() {
   // パレット変更後に再実行する用
   const handleRefreshConversion = () => {
     if (backgroundImage) runImageConversion(backgroundImage);
-  };
-
-  //グリッドをパレット0番の色でリセットする関数
-  const clearGrid = () => {
-    if (window.confirm("ドット絵をすべてリセットしますか？")) {
-      setGrid(makeGrid(gridSize)); // makeGridはすべてのセルを0で埋めるので、一番上の色になります
-    }
   };
 
   //グリッドの色を変更
@@ -206,9 +243,11 @@ function App() {
           grid={grid} palette={palette} nowColorID={nowColorID} setNowColorID={setNowColorID} UpdataPaletteID={UpdataPaletteID} addColor={addColor}
           handleImageUpload={handleImageUpload} gridSize={gridSize} resizeGrid={resizeGrid} backgroundImage={backgroundImage}
           bgOpacity={bgOpacity} setBgOpacity={setBgOpacity} penSize={penSize} setPenSize={setPenSize} paintCells={paintCells} setLastPos={setLastPos}
-          zoom={zoom} setZoom={setZoom} handleRefreshConversion={handleRefreshConversion} clearGrid={clearGrid} bgOffset={bgOffset} setBgOffset={setBgOffset}/>
+          zoom={zoom} setZoom={setZoom} handleRefreshConversion={handleRefreshConversion} clearGrid={clearGrid} bgOffset={bgOffset} setBgOffset={setBgOffset}
+          undo={undo} redo={redo} canUndo={historyIndex > 0} canRedo={historyIndex < history.length - 1} endAction={endAction} 
+          />
         ): (
-          <Viewer grid={grid} palette={palette} gridSize={gridSize}/>
+          <Viewer key={`${gridSize.row}-${gridSize.col}`} grid={grid} palette={palette}/>
         )}
       </div>
 
