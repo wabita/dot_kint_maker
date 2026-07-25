@@ -91,7 +91,7 @@ export const Viewer = ({ grid, palette }: ViewerProps) => {
         <div style={{ display: 'flex', flexDirection: 'row', gap: '30px', alignItems: 'flex-start', justifyContent: 'center', width: '100%' }}>
             
             {/* 左側：プレビュー */}
-            <div style={{ display: 'flex', width: '400px', height: '400px', flexShrink: 0, alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', width: 'min(400px, calc(100vw - 48px))', height: 'min(400px, calc(100vw - 48px))', flexShrink: 0, alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
                 <div style={{
                     width: totalCols >= totalRows ? '100%' : 'auto',
                     height: totalRows >= totalCols ? '100%' : 'auto',

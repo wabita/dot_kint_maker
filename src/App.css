@@ -1,26 +1,62 @@
 
 html, body, #root {
   width: 100%;
-  height: 100%;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden; 
-  background-color: #f4f1e8;
+  min-height: 100%;
+}
 
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
+body {
   -webkit-tap-highlight-color: transparent;
 }
 
-#root {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-}
-
-input, textarea {
+input, textarea, select {
   -webkit-user-select: text;
   user-select: text;
+}
+
+/* 編集画面: 横向きのPC・タブレットでは、設定／キャンバス／ツールを3列に保つ。 */
+.editor-layout {
+  width: 100%;
+  margin: 0 auto;
+}
+
+@media (min-width: 900px) and (orientation: landscape), (min-width: 1200px) {
+  .editor-layout {
+    display: grid !important;
+    grid-template-columns: 180px minmax(320px, 400px) minmax(130px, 160px);
+    align-items: start;
+    justify-content: center !important;
+    gap: 20px !important;
+  }
+
+  .editor-sidebar,
+  .editor-tools {
+    width: 100%;
+  }
+
+  .editor-tools {
+    margin-left: 0 !important;
+  }
+
+  .editor-canvas {
+    justify-self: center;
+  }
+}
+
+/* 狭い幅では、操作の流れに沿って上から下へ並べる。 */
+@media (max-width: 899px) {
+  .editor-layout {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    flex-wrap: nowrap !important;
+  }
+
+  .editor-sidebar,
+  .editor-tools {
+    align-self: center !important;
+  }
+
+  .editor-tools {
+    margin-left: 0 !important;
+  }
 }

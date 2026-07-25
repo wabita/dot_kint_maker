@@ -115,6 +115,8 @@ export const Editor = ({
         if (e.cancelable) e.preventDefault();
         
         if (mode === 'pen') {
+            // iPadOS は Apple Pencil を pointerType="pen" として届ける。
+            // 指・マウスも同じ Pointer Events 経路なので、スマホでも描画できる。
             e.currentTarget.setPointerCapture(e.pointerId);
             setIsDrawing(true);
             
@@ -214,6 +216,10 @@ export const Editor = ({
         lastDrawPosRef.current = null;
     };
 
+    const handlePointerCancel = () => {
+        stopDrawing();
+    };
+
     // ホイール操作で拡大縮小
     const handleWheel = (e: React.WheelEvent) => {
         // e.deltaY がマイナスなら上（奥）へ回転 ＝ 拡大
@@ -228,8 +234,9 @@ export const Editor = ({
 
     return (
         <div 
-            onPointerUp={stopDrawing} 
-            onPointerLeave={stopDrawing} 
+            className="editor-layout"
+            onPointerUp={stopDrawing}
+            onPointerCancel={handlePointerCancel}
             onPointerMove={handlePointerMove}
             style={{ 
                 touchAction: 'none', 
@@ -246,7 +253,7 @@ export const Editor = ({
         >
             
             {/* 左側：サイドバー */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '180px' }}>
+            <div className="editor-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '180px' }}>
                 <FolderUI 
                 currentTab={activeTab} 
                 setCurrentTab={setActiveTab} 
@@ -393,12 +400,13 @@ export const Editor = ({
 
             {/* 中央*/}
             <div 
+                className="editor-canvas"
                 onWheel={handleWheel}
                 style={{
                     display: 'flex', 
                     flexDirection: 'column', 
-                    width: '400px', 
-                    height: '400px',
+                    width: 'min(400px, calc(100vw - 32px))',
+                    height: 'min(400px, calc(100vw - 32px))',
                     flexShrink: 0, 
                     alignItems: 'center', 
                     justifyContent: 'center', 
@@ -557,7 +565,7 @@ export const Editor = ({
             </div>
 
             {/* 右側：パレット */}
-            <div style={{ 
+            <div className="editor-tools" style={{
                 position: 'relative', 
                 display: 'flex', 
                 flexDirection: 'column',
@@ -711,5 +719,3 @@ const historyBtnStyle = {
     backgroundColor: 'white', border: '2px solid var(--border-color)', borderRadius: '4px',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px'
 };
-
-

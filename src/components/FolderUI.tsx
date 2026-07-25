@@ -20,9 +20,11 @@ export const FolderUI = <T extends string>({
   
   return (
     <div style={{ 
-        padding: isSmall ? '0' : '40px', 
+        padding: isSmall ? '0' : 'clamp(12px, 5vw, 40px)',
         maxWidth: isSmall ? '100%' : '900px', 
-        margin: '0 auto' 
+        margin: '0 auto',
+        boxSizing: 'border-box',
+        width: '100%'
     }}>
       {/*タブボタン*/}
       <div style={{ display: 'flex', gap: `7px`, paddingLeft: '10px',  alignItems: 'flex-end' }}>
@@ -44,8 +46,9 @@ export const FolderUI = <T extends string>({
           zIndex: 2,
           border: '4px solid var(--border-color)',
           margin: '0 auto',
-          padding: isSmall ? '15px 10px' : '20px 40px', // 中の余白も比率で変える
+          padding: isSmall ? '15px 10px' : 'clamp(12px, 4vw, 20px) clamp(12px, 5vw, 40px)',
           minHeight: isSmall ? 'auto' : '500px',
+          boxSizing: 'border-box',
         }}
       >
         {children}

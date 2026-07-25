@@ -1,4 +1,4 @@
-import { useState, useCallback,useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { get, set } from 'idb-keyval';
 import { FolderUI } from './components/FolderUI';
 import { Editor } from './components/Editor';
@@ -45,6 +45,7 @@ function App() {
   ]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [grid, setGrid] = useState(() => history[0].grid);
+  const gridRef = useRef(grid);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [bgOpacity, setBgOpacity] = useState(0.4);
   const [penSize, setPenSize] = useState(1);
@@ -55,11 +56,16 @@ function App() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
 
+  useEffect(() => {
+    gridRef.current = grid;
+  }, [grid]);
+
   // 新規作成の関数
   const createNewProject = () => {
     const newSize = { row: 70, col: 50 };
     const newGrid = makeGrid(newSize);
     setGrid(newGrid);
+    gridRef.current = newGrid;
     setGridSize(newSize);
     setPalette(['#FFFFFF', '#000000']);
     setBackgroundImage(null);
@@ -72,6 +78,7 @@ function App() {
   // 作品読み込み関数
   const loadProject = (p: Project) => {
     setGrid(p.grid);
+    gridRef.current = p.grid;
     setGridSize(p.size);
     setPalette(p.palette);
     setHistory([{ grid: p.grid, size: p.size }]);
@@ -138,6 +145,7 @@ function App() {
     setGridSize(newSize);
     const newGrid = makeGrid(newSize);
     setGrid(newGrid);
+    gridRef.current = newGrid;
     saveHistory(newGrid, newSize);
   };
   //グリッドをパレット0番の色でリセットする関数
@@ -145,6 +153,7 @@ function App() {
     if (window.confirm("ドット絵をすべてリセットしますか？")) {
       const newGrid = makeGrid(gridSize);
       setGrid(newGrid);
+      gridRef.current = newGrid;
       saveHistory(newGrid, gridSize);
     }
   };
@@ -233,6 +242,7 @@ function App() {
                   }
               }
               setGrid(newGrid);
+              gridRef.current = newGrid;
               saveHistory(newGrid, gridSize);
           }
       };
@@ -240,7 +250,7 @@ function App() {
   };
   //描画終了時に保存
   const endAction = () => {
-    saveHistory(grid, gridSize);
+    saveHistory(gridRef.current, gridSize);
   };
 
     // 戻る・進むの関数
@@ -317,6 +327,7 @@ function App() {
         }
       });
 
+      gridRef.current = newGrid;
       return newGrid;
     });
     // 今塗った場所を「直前の座標」として保存
@@ -517,4 +528,3 @@ function App() {
 }
 
 export default App;
-

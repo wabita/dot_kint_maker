@@ -22,6 +22,7 @@ body {
   background-image: radial-gradient(var(--dot-color) 20%, transparent 20%);
   background-position: 0 0;
   background-size: 20px 20px; /* 水玉の間隔 */
+  min-width: 320px;
 }
 
 /* 3. ボタンを押した時の「ペコッ」となる動き */
